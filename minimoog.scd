@@ -1,27 +1,25 @@
 s.boot;
 
 (
-~gateBus = Bus.control(s, 1).set(0);
-)
+var window = Window("Minimoog Controls");
+var minimoogSynth;
 
-(
-w = Window.new(
-	name: "minimoog controls",
-);
+var gate = 0;
+var toggleGate;
+var gateButton;
 
-b = Button(w, Rect(10, 10, 20, 20));
-b.string = "G";
-b.action_({|button|
-	~gateBus.get({|value|
-		~gateBus.set((value + 1) % 2);
-	});
-});
+toggleGate = {
+	if(gate == 0, { gate = 1 }, { gate = 0 });
+	minimoogSynth.set(\gate, gate);
+};
 
-w.front;
-)
+gateButton = Button(window, Rect(10, 10, 20, 20))
+.string_("G")
+.action_(toggleGate);
 
-(
-SynthDef.new(\minimoog, {|out=0, mul=1, gate=1|
+SynthDef(\minimoog, { | out=0, amp=1, gate=0 |
+	var sound = Saw.ar(440, amp);
+
 	var soundEnv = EnvGen.kr(
 		envelope: Env.adsr(
 			attackTime: 0.01,
@@ -32,15 +30,24 @@ SynthDef.new(\minimoog, {|out=0, mul=1, gate=1|
 		gate: gate
 	);
 
-	Out.ar(out, Pan2.ar(soundEnv * Saw.ar(440, mul), 0));
-}).send;
+	sound = sound * soundEnv;
 
-~moog.free;
+	sound = Pan2.ar(sound, 0);
+	Out.ar(out, sound);
+}).add;
 
-~moog = Synth(\minimoog, [
-	\mul: 0.1,
-	\gate: 0,
-]);
-~moog.map(\gate, ~gateBus);
+forkIfNeeded {
+	s.sync;
+	minimoogSynth = Synth(\minimoog, [
+		amp: 0.1,
+		gate: gate,
+	]);
+};
 
+
+window.onClose_({ minimoogSynth.free; });
+CmdPeriod.doOnce({ window.close; });
+
+window.front
 )
+
