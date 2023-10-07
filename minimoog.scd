@@ -1,21 +1,42 @@
 s.boot;
 
 (
+MIDIIn.connectAll;
+)
+
+(
 var window = Window("Minimoog Controls");
 var minimoogSynth;
+var noteOn;
+var noteOff;
 
 var gate = 0;
+var setGate;
 var toggleGate;
 var gateButton;
 
-toggleGate = {
-	if(gate == 0, { gate = 1 }, { gate = 0 });
+setGate = { | value |
+	gate = value;
 	minimoogSynth.set(\gate, gate);
+};
+toggleGate = {
+	if(gate == 0) {
+		setGate.value(1);
+	} {
+		setGate.value(0);
+	};
 };
 
 gateButton = Button(window, Rect(10, 10, 20, 20))
 .string_("G")
 .action_(toggleGate);
+
+noteOn = MIDIFunc.noteOn({ | velocity, note, channel, something |
+	setGate.value(1);
+});
+noteOff = MIDIFunc.noteOff({| velocity, note, channel, something |
+	setGate.value(0);
+});
 
 SynthDef(\minimoog, { | out=0, amp=1, gate=0 |
 	var sound = Saw.ar(440, amp);
@@ -45,7 +66,11 @@ forkIfNeeded {
 };
 
 
-window.onClose_({ minimoogSynth.free; });
+window.onClose_({
+	minimoogSynth.free;
+	noteOn.free;
+	noteOff.free;
+});
 CmdPeriod.doOnce({ window.close; });
 
 window.front
