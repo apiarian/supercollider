@@ -160,7 +160,7 @@ SynthDef(\minimoog, { |
 		gate: gate
 	);
 
-	var filterNote = filterCutoff + (filterEnv * filterContour) + (filterKeyboard1 * 1/3 * smoothedNote) + (filterKeyboard2 * 2/3 * smoothedNote) + (filterModOn * modSignal * 127);
+	var filterNote = filterCutoff; // + (filterModOn * modSignal * 12) + (filterEnv * filterContour * 12) + (filterKeyboard1 * 1/3 * smoothedNote) + (filterKeyboard2 * 2/3 * smoothedNote);
 
 	sound = MoogLadder.ar(
 		in: sound,
@@ -179,7 +179,7 @@ SynthDef(\minimoog, { |
 forkIfNeeded {
 	s.sync;
 	minimoogSynth = Synth(\minimoog, [
-		amp: 0.5,
+		amp: 1.0,
 	]);
 };
 
@@ -290,6 +290,9 @@ window.layout = VLayout(
 		EZKnob(window, 160@40, label: "Sustain", controlSpec: ControlSpec(0, 1, units: "%"), action: {
 			| k | minimoogSynth.set(\filterSustain, k.value);
 		}, layout: \line2,).view,
+		EZKnob(window, 160@40, label: "Cutoff", controlSpec: ControlSpec(0, 127, units: "note"), action: {
+			| k | minimoogSynth.set(\filterCutoff, k.value);
+		}, layout: \line2).view,
 	),
 	StaticText(window).string_("Loudness:"),
 	HLayout(
@@ -382,7 +385,7 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 	}
 	{ 83 } {
 		format("Slider 2 = %", value).postln;
-		minimoogSynth.set(\filterCutoff, value);
+		minimoogSynth.set(\filterCutoff, value.linlin(0, 127, -50, 50));
 	}
 	{ 85 } {
 		format("Slider 3 = %", value).postln;
