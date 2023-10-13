@@ -7,7 +7,7 @@ s.freqscope;
 )
 
 (
-var window = Window("Minimoog Controls");
+var window = Window("Minimoog Controls", 700@400);
 
 var minimoogSynth;
 var noteOn;
@@ -50,10 +50,6 @@ toggleGate = {
 	};
 };
 
-gateButton = Button(window, Rect(10, 10, 20, 20))
-.string_("G")
-.action_(toggleGate);
-
 setNote = { | value |
 	note = value;
 	minimoogSynth.set(\note, note);
@@ -73,32 +69,66 @@ setOSC3Volume = { | value |
 	minimoogSynth.set(\osc3Volume, value);
 };
 
-StaticText(window, Rect(10, 35, 50, 20)).string_("OSC 1:");
-osc1SelectionMenu = PopUpMenu(window, Rect(60, 35, 100, 20))
-.items_(["Triangle", "Tri/Saw", "Sawtooth", "Square", "Rect", "Pulse"])
-.action_({ | menu | minimoogSynth.set(\osc1Selection, menu.value) });
-osc1RangeMenu = PopUpMenu(window, Rect(170, 35, 50, 20))
-.items_(["LO", "32'", "16'", "8'", "4'", "2'"])
-.action_({ | menu | minimoogSynth.set(\osc1Range, menu.value) })
-.value_(3);
+window.layout = VLayout(
+	HLayout(
+		StaticText(window).string_("OSC 1:"),
+		osc1SelectionMenu = PopUpMenu(window)
+		.items_(["Triangle", "Tri/Saw", "Sawtooth", "Square", "Rect", "Pulse"])
+		.action_({ | menu | minimoogSynth.set(\osc1Selection, menu.value) }),
+		osc1RangeMenu = PopUpMenu(window)
+		.items_(["LO", "32'", "16'", "8'", "4'", "2'"])
+		.action_({ | menu | minimoogSynth.set(\osc1Range, menu.value) })
+		.value_(3),
+	),
+	HLayout(
+		StaticText(window).string_("OSC 2:"),
+		osc2SelectionMenu = PopUpMenu(window)
+		.items_(["Triangle", "Tri/Saw", "Sawtooth", "Square", "Rect", "Pulse"])
+		.action_({ | menu | minimoogSynth.set(\osc2Selection, menu.value) }),
+		osc2RangeMenu = PopUpMenu(window)
+		.items_(["LO", "32'", "16'", "8'", "4'", "2'"])
+		.action_({ | menu | minimoogSynth.set(\osc2Range, menu.value) })
+		.value_(3),
+	),
+	HLayout(
+		StaticText(window).string_("OSC 3:"),
+		osc3SelectionMenu = PopUpMenu(window)
+		.items_(["Triangle", "Rev. Saw", "Sawtooth", "Square", "Rect", "Pulse"])
+		.action_({ | menu | minimoogSynth.set(\osc3Selection, menu.value) }),
+		osc3RangeMenu = PopUpMenu(window)
+		.items_(["LO", "32'", "16'", "8'", "4'", "2'"])
+		.action_({ | menu | minimoogSynth.set(\osc3Range, menu.value) })
+		.value_(3),
+	),
+	Button(window).states_([["Decay Off"], ["Decay On"]]).action_({ | button |
+		minimoogSynth.set(\decayOn, button.value)
+	}),
+	StaticText(window).string_("Filter:"),
+	HLayout(
+		EZKnob(window, 160@40, label: "Attack", controlSpec: ControlSpec(0.01, 10, \exp, units: "s"), action: {
+			| k | minimoogSynth.set(\filterAttack, k.value);
+		}, layout: \horz).view,
+		EZKnob(window, 160@40, label: "Decay", controlSpec: ControlSpec(0.04, 35, \exp, units: "s"), action: {
+			| k | minimoogSynth.set(\filterDecay, k.value);
+		}, layout:\horz).view,
+		EZKnob(window, 160@40, label: "Sustain", controlSpec: ControlSpec(0, 1, units: "%"), action: {
+			| k | minimoogSynth.set(\filterSustain, k.value);
+		}, layout: \horz).view,
+	),
+	StaticText(window).string_("Loudness:"),
+	HLayout(
+		EZKnob(window, 160@40, label: "Attack", controlSpec: ControlSpec(0.01, 10, \exp, units: "s"), action: {
+			| k | minimoogSynth.set(\soundAttack, k.value);
+		}, layout: \horz).view,
+		EZKnob(window, 160@40, label: "Decay", controlSpec: ControlSpec(0.04, 35, \exp, units: "s"), action: {
+			| k | minimoogSynth.set(\soundDecay, k.value);
+		}, layout:\horz).view,
+		EZKnob(window, 160@40, label: "Sustain", controlSpec: ControlSpec(0, 1, units: "%"), action: {
+			| k | minimoogSynth.set(\soundSustain, k.value);
+		}, layout: \horz).view,
+	),
+);
 
-StaticText(window, Rect(10, 60, 50, 20)).string_("OSC 2:");
-osc2SelectionMenu = PopUpMenu(window, Rect(60, 60, 100, 20))
-.items_(["Triangle", "Tri/Saw", "Sawtooth", "Square", "Rect", "Pulse"])
-.action_({ | menu | minimoogSynth.set(\osc2Selection, menu.value) });
-osc2RangeMenu = PopUpMenu(window, Rect(170, 60, 50, 20))
-.items_(["LO", "32'", "16'", "8'", "4'", "2'"])
-.action_({ | menu | minimoogSynth.set(\osc2Range, menu.value) })
-.value_(3);
-
-StaticText(window, Rect(10, 85, 50, 20)).string_("OSC 3:");
-osc3SelectionMenu = PopUpMenu(window, Rect(60, 85, 100, 20))
-.items_(["Triangle", "Rev. Saw", "Sawtooth", "Square", "Rect", "Pulse"])
-.action_({ | menu | minimoogSynth.set(\osc3Selection, menu.value) });
-osc3RangeMenu = PopUpMenu(window, Rect(170, 85, 50, 20))
-.items_(["LO", "32'", "16'", "8'", "4'", "2'"])
-.action_({ | menu | minimoogSynth.set(\osc3Range, menu.value) })
-.value_(3);
 
 noteOn = MIDIFunc.noteOn({ | velocity, note, channel, something |
 	format("Note % on %", note, velocity).postln;
@@ -120,6 +150,10 @@ noteOff = MIDIFunc.noteOff({| velocity, note, channel, something |
 
 cc = MIDIFunc.cc({| value, control, channel, something |
 	switch(control)
+	{ 1 } {
+		format("Mod = %", value).postln;
+		minimoogSynth.set(\mod, value.linlin(0, 127, 0, 1));
+	}
 	{ 74 } {
 		format("Rotary 1 = %", value).postln;
 		setOSC1Volume.value(value.linlin(0, 127, 0, 1));
@@ -166,7 +200,7 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 	}
 	{ 83 } {
 		format("Slider 2 = %", value).postln;
-		// filter cutoff frequency
+		minimoogSynth.set(\filterCutoff, value);
 	}
 	{ 85 } {
 		format("Slider 3 = %", value).postln;
@@ -174,7 +208,7 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 	}
 	{ 17 } {
 		format("Slider 4 = %", value).postln;
-		// filter amount of contour
+		minimoogSynth.set(\filterContour, value.linlin(0, 127, 0.0, 2));
 	}
 	{ 109 } {
 		format("Pad 1A = %", value).postln;
@@ -202,15 +236,15 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 	}
 	{ 121 } {
 		format("Pad 7A = %", value).postln;
-		// filter keyboard control 1
+		minimoogSynth.set(\filterKeyboard1, value / 127);
 	}
 	{ 123 } {
 		format("Pad 8A = %", value).postln;
-		// filter keyboard control 2
+		minimoogSynth.set(\filterKeyboard2, value / 127);
 	}
 	{ 110 } {
 		format("Pad 1B = %", value).postln;
-		// filter modulation
+		minimoogSynth.set(\filterModOn, value / 127);
 	}
 	{ 112 } {
 		format("Pad 2B = %", value).postln;
@@ -246,12 +280,16 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 
 SynthDef(\minimoog, { |
 	out=0,
-	note=60, amp=1, gate=0,
+	note=60, amp=1, gate=0, mod = 0,
 	osc1Volume = 1, osc1Range = 3, osc1Selection = 0,
 	osc2Volume = 0, osc2Range = 3, osc2Selection = 0, osc2NoteOffset = 0,
 	osc3Volume = 0, osc3Range = 3, osc3Selection = 0, osc3NoteOffset = 0,
-	filterEmphasis=0.0
+	decayOn = 0,
+	filterCutoff = 1, filterEmphasis = 0.0, filterKeyboard1 = 0, filterKeyboard2 = 0, filterContour = 0,  filterModOn = 0,
+	filterAttack = 0.1, filterDecay = 0.1, filterSustain = 1,
+	soundAttack = 0.1, soundDecay = 0.1, soundSustain = 1
 	|
+
 	var osc1note = note + (12 * (osc1Range - 3));
 	var osc1Freq = osc1note.midicps;
 
@@ -294,17 +332,29 @@ SynthDef(\minimoog, { |
 
 	var soundEnv = EnvGen.kr(
 		envelope: Env.adsr(
-			attackTime: 0.01,
-			decayTime: 0.5,
-			sustainLevel: 1,
-			releaseTime: 1,
+			attackTime: soundAttack,
+			decayTime: soundDecay,
+			sustainLevel: soundSustain,
+			releaseTime: decayOn * soundDecay,
 		),
 		gate: gate
 	);
 
+	var filterEnv = EnvGen.kr(
+		envelope: Env.adsr(
+			attackTime: filterAttack,
+			decayTime: filterDecay,
+			sustainLevel: filterSustain,
+			releaseTime: decayOn * filterDecay,
+		),
+		gate: gate
+	);
+
+	var filterNote = filterCutoff + (filterEnv * filterContour) + (filterKeyboard1 * 1/3 * note) + (filterKeyboard2 * 2/3 * note) + (filterModOn * mod * 127);
+
 	sound = MoogLadder.ar(
 		in: sound,
-		ffreq: note.midicps*8,
+		ffreq: filterNote.midicps,
 		res: filterEmphasis,
 	);
 
