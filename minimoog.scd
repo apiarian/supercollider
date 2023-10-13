@@ -2,6 +2,8 @@ s.boot;
 
 (
 MIDIIn.connectAll;
+s.scope;
+s.freqscope;
 )
 
 (
@@ -261,7 +263,7 @@ SynthDef(\minimoog, { |
 
 	var osc1 = Select.ar(osc1Selection, [
 		LFTri.ar(osc1Freq),
-		LFTri.ar(osc1Freq, mul: 0.5) + LFSaw.ar(osc1Freq, mul: 0.5),
+		(LFTri.ar(osc1Freq) * LFPulse.ar(osc1Freq * 2)) + (LFSaw.ar(osc1Freq, iphase: 1, mul: -1) * LFPulse.ar(osc1Freq * 2, iphase: 0.5)),
 		Saw.ar(osc1Freq),
 		Pulse.ar(osc1Freq, width: 0.5),
 		Pulse.ar(osc1Freq, width: 0.25),
@@ -269,7 +271,7 @@ SynthDef(\minimoog, { |
 	]);
 	var osc2 = Select.ar(osc2Selection, [
 		LFTri.ar(osc2Freq),
-		LFTri.ar(osc2Freq, mul: 0.5) + LFSaw.ar(osc2Freq, mul: 0.5),
+		(LFTri.ar(osc2Freq) * LFPulse.ar(osc2Freq * 2)) + (LFSaw.ar(osc2Freq, iphase: 1, mul: -1) * LFPulse.ar(osc2Freq * 2, iphase: 0.5)),
 		Saw.ar(osc2Freq),
 		Pulse.ar(osc2Freq, width: 0.5),
 		Pulse.ar(osc2Freq, width: 0.25),
