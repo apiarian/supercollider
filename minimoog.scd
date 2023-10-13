@@ -281,13 +281,13 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 SynthDef(\minimoog, { |
 	out=0,
 	note=60, amp=1, gate=0, mod = 0,
-	osc1Volume = 1, osc1Range = 3, osc1Selection = 0,
+	osc1Volume = 0, osc1Range = 3, osc1Selection = 0,
 	osc2Volume = 0, osc2Range = 3, osc2Selection = 0, osc2NoteOffset = 0,
 	osc3Volume = 0, osc3Range = 3, osc3Selection = 0, osc3NoteOffset = 0,
 	decayOn = 0,
-	filterCutoff = 1, filterEmphasis = 0.0, filterKeyboard1 = 0, filterKeyboard2 = 0, filterContour = 0,  filterModOn = 0,
-	filterAttack = 0.1, filterDecay = 0.1, filterSustain = 1,
-	soundAttack = 0.1, soundDecay = 0.1, soundSustain = 1
+	filterCutoff = 0, filterEmphasis = 0.0, filterKeyboard1 = 0, filterKeyboard2 = 0, filterContour = 0,  filterModOn = 0,
+	filterAttack = 0.1, filterDecay = 0.1, filterSustain = 0,
+	soundAttack = 0.1, soundDecay = 0.1, soundSustain = 0
 	|
 
 	var osc1note = note + (12 * (osc1Range - 3));
