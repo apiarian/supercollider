@@ -48,11 +48,13 @@ SynthDef(\minimoog, { |
 	osc2Volume = 0, osc2Range = 3, osc2Selection = 0, osc2NoteOffset = 0, osc2On = 0,
 	osc3Volume = 0, osc3Range = 3, osc3Selection = 0, osc3NoteOffset = 0, osc3On = 0,
 	noiseVolume = 0, noiseSelection = 0, noiseOn = 0,
+	extVolume = 0, extOn = 0,
 	decayOn = 0,
 	filterCutoff = 0, filterEmphasis = 0.0, filterKeyboard1 = 0, filterKeyboard2 = 0, filterContour = 0,  filterModOn = 0,
 	filterAttack = 0.1, filterDecay = 0.1, filterSustain = 0,
 	soundAttack = 0.1, soundDecay = 0.1, soundSustain = 0
 	|
+	var extBus = Bus.audio;
 
 	var smoothedNote = Select.kr(glideOn, [
 		note + bend,
@@ -145,6 +147,7 @@ SynthDef(\minimoog, { |
 		osc2Volume * osc2 * osc2On,
 		osc3Volume * osc3 * osc3On,
 		noiseVolume * audioNoise * noiseOn,
+		1 * extVolume * InFeedback.ar(extBus, 1) * extOn,
 	]);
 
 	var soundEnv = EnvGen.kr(
@@ -165,9 +168,11 @@ SynthDef(\minimoog, { |
 		res: filterEmphasis,
 	);
 
-	sound = amp * sound * soundEnv;
+	sound = sound * soundEnv;
 
-	sound = Pan2.ar(sound, 0);
+	Out.ar(extBus, sound);
+
+	sound = Pan2.ar(amp * sound, 0);
 	Out.ar(out, sound);
 }).add;
 
@@ -373,7 +378,7 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 	}
 	{ 82 } {
 		format("Slider 1 = %", value).postln;
-		// volume ext.
+		minimoogSynth.set(\extVolume, value.linlin(0, 127, 0, 1));
 	}
 	{ 83 } {
 		format("Slider 2 = %", value).postln;
@@ -409,7 +414,7 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 	}
 	{ 119 } {
 		format("Pad 6A = %", value).postln;
-		// ext. mix
+		minimoogSynth.set(\extOn, value/127);
 	}
 	{ 121 } {
 		format("Pad 7A = %", value).postln;
