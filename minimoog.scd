@@ -38,6 +38,106 @@ var osc1RangeMenu;
 var osc2RangeMenu;
 var osc3RangeMenu;
 
+SynthDef(\minimoog, { |
+	out=0,
+	note=60, amp=1, gate=0, mod = 0,
+	osc1Volume = 0, osc1Range = 3, osc1Selection = 0,
+	osc2Volume = 0, osc2Range = 3, osc2Selection = 0, osc2NoteOffset = 0,
+	osc3Volume = 0, osc3Range = 3, osc3Selection = 0, osc3NoteOffset = 0,
+	noiseVolume = 0, noiseSelection = 0,
+	decayOn = 0,
+	filterCutoff = 0, filterEmphasis = 0.0, filterKeyboard1 = 0, filterKeyboard2 = 0, filterContour = 0,  filterModOn = 0,
+	filterAttack = 0.1, filterDecay = 0.1, filterSustain = 0,
+	soundAttack = 0.1, soundDecay = 0.1, soundSustain = 0
+	|
+
+	var audioNoise = Select.ar(noiseSelection, [
+		WhiteNoise.ar,
+		PinkNoise.ar,
+	]);
+
+	var osc1note = note + (12 * (osc1Range - 3));
+	var osc1Freq = osc1note.midicps;
+
+	var osc2note = note + (12 * (osc2Range - 3)) + osc2NoteOffset;
+	var osc2Freq = osc2note.midicps;
+
+	var osc3note = note + (12 * (osc3Range - 3)) + osc3NoteOffset;
+	var osc3Freq = osc3note.midicps;
+
+	var osc1 = Select.ar(osc1Selection, [
+		LFTri.ar(osc1Freq),
+		(LFTri.ar(osc1Freq) * LFPulse.ar(osc1Freq * 2)) + (LFSaw.ar(osc1Freq, iphase: 1, mul: -1) * LFPulse.ar(osc1Freq * 2, iphase: 0.5)),
+		Saw.ar(osc1Freq),
+		Pulse.ar(osc1Freq, width: 0.5),
+		Pulse.ar(osc1Freq, width: 0.25),
+		Pulse.ar(osc1Freq, width: 0.05),
+	]);
+	var osc2 = Select.ar(osc2Selection, [
+		LFTri.ar(osc2Freq),
+		(LFTri.ar(osc2Freq) * LFPulse.ar(osc2Freq * 2)) + (LFSaw.ar(osc2Freq, iphase: 1, mul: -1) * LFPulse.ar(osc2Freq * 2, iphase: 0.5)),
+		Saw.ar(osc2Freq),
+		Pulse.ar(osc2Freq, width: 0.5),
+		Pulse.ar(osc2Freq, width: 0.25),
+		Pulse.ar(osc2Freq, width: 0.05),
+	]);
+	var osc3 = Select.ar(osc3Selection, [
+		LFTri.ar(osc3Freq),
+		LFSaw.ar(osc3Freq, mul: -1),
+		Saw.ar(osc3Freq),
+		Pulse.ar(osc3Freq, width: 0.5),
+		Pulse.ar(osc3Freq, width: 0.25),
+		Pulse.ar(osc3Freq, width: 0.05),
+	]);
+
+	var sound = Mix([
+		osc1Volume * osc1,
+		osc2Volume * osc2,
+		osc3Volume * osc3,
+		noiseVolume * audioNoise,
+	]);
+
+	var soundEnv = EnvGen.kr(
+		envelope: Env.adsr(
+			attackTime: soundAttack,
+			decayTime: soundDecay,
+			sustainLevel: soundSustain,
+			releaseTime: decayOn * soundDecay,
+		),
+		gate: gate
+	);
+
+	var filterEnv = EnvGen.kr(
+		envelope: Env.adsr(
+			attackTime: filterAttack,
+			decayTime: filterDecay,
+			sustainLevel: filterSustain,
+			releaseTime: decayOn * filterDecay,
+		),
+		gate: gate
+	);
+
+	var filterNote = filterCutoff + (filterEnv * filterContour) + (filterKeyboard1 * 1/3 * note) + (filterKeyboard2 * 2/3 * note) + (filterModOn * mod * 127);
+
+	sound = MoogLadder.ar(
+		in: sound,
+		ffreq: filterNote.midicps,
+		res: filterEmphasis,
+	);
+
+	sound = amp * sound * soundEnv;
+
+	sound = Pan2.ar(sound, 0);
+	Out.ar(out, sound);
+}).add;
+
+forkIfNeeded {
+	s.sync;
+	minimoogSynth = Synth(\minimoog, [
+		amp: 0.5,
+	]);
+};
+
 setGate = { | value |
 	gate = value;
 	minimoogSynth.set(\gate, gate);
@@ -113,7 +213,7 @@ window.layout = VLayout(
 		}, layout:\horz).view,
 		EZKnob(window, 160@40, label: "Sustain", controlSpec: ControlSpec(0, 1, units: "%"), action: {
 			| k | minimoogSynth.set(\filterSustain, k.value);
-		}, layout: \horz).view,
+		}, layout: \horz,).view,
 	),
 	StaticText(window).string_("Loudness:"),
 	HLayout(
@@ -125,7 +225,7 @@ window.layout = VLayout(
 		}, layout:\horz).view,
 		EZKnob(window, 160@40, label: "Sustain", controlSpec: ControlSpec(0, 1, units: "%"), action: {
 			| k | minimoogSynth.set(\soundSustain, k.value);
-		}, layout: \horz).view,
+		}, layout: \horz, initVal: 1, initAction: true).view,
 	),
 );
 
@@ -168,7 +268,7 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 	}
 	{ 77 } {
 		format("Rotary 4 = %", value).postln;
-		// volume noise
+		minimoogSynth.set(\noiseVolume, value.linlin(0, 127, 0, 1));
 	}
 	{ 93 } {
 		format("Rotary 5 = %", value).postln;
@@ -260,7 +360,7 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 	}
 	{ 118 } {
 		format("Pad 5B = %", value).postln;
-		// noise color
+		minimoogSynth.set(\noiseSelection, value / 127);
 	}
 	{ 120 } {
 		format("Pad 6B = %", value).postln;
@@ -277,99 +377,6 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 
 	{ format("control % = %", control, value).postln };
 });
-
-SynthDef(\minimoog, { |
-	out=0,
-	note=60, amp=1, gate=0, mod = 0,
-	osc1Volume = 0, osc1Range = 3, osc1Selection = 0,
-	osc2Volume = 0, osc2Range = 3, osc2Selection = 0, osc2NoteOffset = 0,
-	osc3Volume = 0, osc3Range = 3, osc3Selection = 0, osc3NoteOffset = 0,
-	decayOn = 0,
-	filterCutoff = 0, filterEmphasis = 0.0, filterKeyboard1 = 0, filterKeyboard2 = 0, filterContour = 0,  filterModOn = 0,
-	filterAttack = 0.1, filterDecay = 0.1, filterSustain = 0,
-	soundAttack = 0.1, soundDecay = 0.1, soundSustain = 0
-	|
-
-	var osc1note = note + (12 * (osc1Range - 3));
-	var osc1Freq = osc1note.midicps;
-
-	var osc2note = note + (12 * (osc2Range - 3)) + osc2NoteOffset;
-	var osc2Freq = osc2note.midicps;
-
-	var osc3note = note + (12 * (osc3Range - 3)) + osc3NoteOffset;
-	var osc3Freq = osc3note.midicps;
-
-	var osc1 = Select.ar(osc1Selection, [
-		LFTri.ar(osc1Freq),
-		(LFTri.ar(osc1Freq) * LFPulse.ar(osc1Freq * 2)) + (LFSaw.ar(osc1Freq, iphase: 1, mul: -1) * LFPulse.ar(osc1Freq * 2, iphase: 0.5)),
-		Saw.ar(osc1Freq),
-		Pulse.ar(osc1Freq, width: 0.5),
-		Pulse.ar(osc1Freq, width: 0.25),
-		Pulse.ar(osc1Freq, width: 0.05),
-	]);
-	var osc2 = Select.ar(osc2Selection, [
-		LFTri.ar(osc2Freq),
-		(LFTri.ar(osc2Freq) * LFPulse.ar(osc2Freq * 2)) + (LFSaw.ar(osc2Freq, iphase: 1, mul: -1) * LFPulse.ar(osc2Freq * 2, iphase: 0.5)),
-		Saw.ar(osc2Freq),
-		Pulse.ar(osc2Freq, width: 0.5),
-		Pulse.ar(osc2Freq, width: 0.25),
-		Pulse.ar(osc2Freq, width: 0.05),
-	]);
-	var osc3 = Select.ar(osc3Selection, [
-		LFTri.ar(osc3Freq),
-		LFSaw.ar(osc3Freq, mul: -1),
-		Saw.ar(osc3Freq),
-		Pulse.ar(osc3Freq, width: 0.5),
-		Pulse.ar(osc3Freq, width: 0.25),
-		Pulse.ar(osc3Freq, width: 0.05),
-	]);
-
-	var sound = Mix([
-		osc1Volume * osc1,
-		osc2Volume * osc2,
-		osc3Volume * osc3,
-	]);
-
-	var soundEnv = EnvGen.kr(
-		envelope: Env.adsr(
-			attackTime: soundAttack,
-			decayTime: soundDecay,
-			sustainLevel: soundSustain,
-			releaseTime: decayOn * soundDecay,
-		),
-		gate: gate
-	);
-
-	var filterEnv = EnvGen.kr(
-		envelope: Env.adsr(
-			attackTime: filterAttack,
-			decayTime: filterDecay,
-			sustainLevel: filterSustain,
-			releaseTime: decayOn * filterDecay,
-		),
-		gate: gate
-	);
-
-	var filterNote = filterCutoff + (filterEnv * filterContour) + (filterKeyboard1 * 1/3 * note) + (filterKeyboard2 * 2/3 * note) + (filterModOn * mod * 127);
-
-	sound = MoogLadder.ar(
-		in: sound,
-		ffreq: filterNote.midicps,
-		res: filterEmphasis,
-	);
-
-	sound = amp * sound * soundEnv;
-
-	sound = Pan2.ar(sound, 0);
-	Out.ar(out, sound);
-}).add;
-
-forkIfNeeded {
-	s.sync;
-	minimoogSynth = Synth(\minimoog, [
-		amp: 0.5,
-	]);
-};
 
 
 window.onClose_({
