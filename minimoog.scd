@@ -6,10 +6,13 @@ MIDIIn.connectAll;
 
 (
 var window = Window("Minimoog Controls");
+
 var minimoogSynth;
 var noteOn;
 var noteOff;
 var cc;
+
+var notesOn = SortedList.new;
 
 var gate = 0;
 var setGate;
@@ -24,6 +27,14 @@ var setFilterEmphasis;
 var setOSC1Volume;
 var setOSC2Volume;
 var setOSC3Volume;
+
+var osc1SelectionMenu;
+var osc2SelectionMenu;
+var osc3SelectionMenu;
+
+var osc1RangeMenu;
+var osc2RangeMenu;
+var osc3RangeMenu;
 
 setGate = { | value |
 	gate = value;
@@ -60,14 +71,49 @@ setOSC3Volume = { | value |
 	minimoogSynth.set(\osc3Volume, value);
 };
 
+StaticText(window, Rect(10, 35, 50, 20)).string_("OSC 1:");
+osc1SelectionMenu = PopUpMenu(window, Rect(60, 35, 100, 20))
+.items_(["Triangle", "Tri/Saw", "Sawtooth", "Square", "Rect", "Pulse"])
+.action_({ | menu | minimoogSynth.set(\osc1Selection, menu.value) });
+osc1RangeMenu = PopUpMenu(window, Rect(170, 35, 50, 20))
+.items_(["LO", "32'", "16'", "8'", "4'", "2'"])
+.action_({ | menu | minimoogSynth.set(\osc1Range, menu.value) })
+.value_(3);
+
+StaticText(window, Rect(10, 60, 50, 20)).string_("OSC 2:");
+osc2SelectionMenu = PopUpMenu(window, Rect(60, 60, 100, 20))
+.items_(["Triangle", "Tri/Saw", "Sawtooth", "Square", "Rect", "Pulse"])
+.action_({ | menu | minimoogSynth.set(\osc2Selection, menu.value) });
+osc2RangeMenu = PopUpMenu(window, Rect(170, 60, 50, 20))
+.items_(["LO", "32'", "16'", "8'", "4'", "2'"])
+.action_({ | menu | minimoogSynth.set(\osc2Range, menu.value) })
+.value_(3);
+
+StaticText(window, Rect(10, 85, 50, 20)).string_("OSC 3:");
+osc3SelectionMenu = PopUpMenu(window, Rect(60, 85, 100, 20))
+.items_(["Triangle", "Rev. Saw", "Sawtooth", "Square", "Rect", "Pulse"])
+.action_({ | menu | minimoogSynth.set(\osc3Selection, menu.value) });
+osc3RangeMenu = PopUpMenu(window, Rect(170, 85, 50, 20))
+.items_(["LO", "32'", "16'", "8'", "4'", "2'"])
+.action_({ | menu | minimoogSynth.set(\osc3Range, menu.value) })
+.value_(3);
+
 noteOn = MIDIFunc.noteOn({ | velocity, note, channel, something |
 	format("Note % on %", note, velocity).postln;
-	setNote.value(note);
+	notesOn.add(note);
+
+	setNote.value(notesOn[0]);
 	setGate.value(1);
 });
 noteOff = MIDIFunc.noteOff({| velocity, note, channel, something |
 	format("Note % off", note, velocity).postln;
-	setGate.value(0);
+	notesOn.removeAt(notesOn.indexOfEqual(note));
+
+	if ( notesOn.size == 0 ) {
+		setGate.value(0);
+	} {
+		setNote.value(notesOn[0])
+	};
 });
 
 cc = MIDIFunc.cc({| value, control, channel, something |
@@ -94,11 +140,19 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 	}
 	{ 18 } {
 		format("Rotary 6 = %", value).postln;
-		// osc 2 freq
+		if (value == 64) {
+			minimoogSynth.set(\osc2NoteOffset, 0);
+		} {
+			minimoogSynth.set(\osc2NoteOffset, value.linlin(0, 127, -8, 8));
+		};
 	}
 	{ 19 } {
 		format("Rotary 7 = %", value).postln;
-		// osc 3 freq
+		if (value == 64) {
+			minimoogSynth.set(\osc3NoteOffset, 0);
+		} {
+			minimoogSynth.set(\osc3NoteOffset, value.linlin(0, 127, -8, 8));
+		};
 	}
 	{ 16 } {
 		format("Rotary 8 = %", value).postln;
@@ -188,12 +242,47 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 	{ format("control % = %", control, value).postln };
 });
 
-SynthDef(\minimoog, { | out=0, note=60, amp=1, gate=0, osc1Volume = 1, osc2Volume = 1, osc3Volume = 1, filterEmphasis=0.0 |
-	var noteFreq = note.midicps;
+SynthDef(\minimoog, { |
+	out=0,
+	note=60, amp=1, gate=0,
+	osc1Volume = 1, osc1Range = 3, osc1Selection = 0,
+	osc2Volume = 0, osc2Range = 3, osc2Selection = 0, osc2NoteOffset = 0,
+	osc3Volume = 0, osc3Range = 3, osc3Selection = 0, osc3NoteOffset = 0,
+	filterEmphasis=0.0
+	|
+	var osc1note = note + (12 * (osc1Range - 3));
+	var osc1Freq = osc1note.midicps;
 
-	var osc1 = Saw.ar(noteFreq);
-	var osc2 = Pulse.ar(noteFreq);
-	var osc3 = LFTri.ar(noteFreq);
+	var osc2note = note + (12 * (osc2Range - 3)) + osc2NoteOffset;
+	var osc2Freq = osc2note.midicps;
+
+	var osc3note = note + (12 * (osc3Range - 3)) + osc3NoteOffset;
+	var osc3Freq = osc3note.midicps;
+
+	var osc1 = Select.ar(osc1Selection, [
+		LFTri.ar(osc1Freq),
+		LFTri.ar(osc1Freq, mul: 0.5) + LFSaw.ar(osc1Freq, mul: 0.5),
+		Saw.ar(osc1Freq),
+		Pulse.ar(osc1Freq, width: 0.5),
+		Pulse.ar(osc1Freq, width: 0.25),
+		Pulse.ar(osc1Freq, width: 0.05),
+	]);
+	var osc2 = Select.ar(osc2Selection, [
+		LFTri.ar(osc2Freq),
+		LFTri.ar(osc2Freq, mul: 0.5) + LFSaw.ar(osc2Freq, mul: 0.5),
+		Saw.ar(osc2Freq),
+		Pulse.ar(osc2Freq, width: 0.5),
+		Pulse.ar(osc2Freq, width: 0.25),
+		Pulse.ar(osc2Freq, width: 0.05),
+	]);
+	var osc3 = Select.ar(osc3Selection, [
+		LFTri.ar(osc3Freq),
+		LFSaw.ar(osc3Freq, mul: -1),
+		Saw.ar(osc3Freq),
+		Pulse.ar(osc3Freq, width: 0.5),
+		Pulse.ar(osc3Freq, width: 0.25),
+		Pulse.ar(osc3Freq, width: 0.05),
+	]);
 
 	var sound = Mix([
 		osc1Volume * osc1,
