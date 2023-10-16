@@ -82,12 +82,13 @@ SynthDef(\minimoog, { |
 			decayTime: filterDecay,
 			sustainLevel: filterSustain,
 			releaseTime: decayOn * filterDecay,
+			peakLevel: 10.0,
 		),
 		gate: gate
 	);
 
 
-	var osc3note = (smoothedNote * osc3Control) + (12 * (osc3Range - 3)) + osc3NoteOffset;
+	var osc3note = (smoothedNote * osc3Control) + (12 * osc3Range) + osc3NoteOffset;
 	var osc3Freq = osc3note.midicps;
 
 	var modComponent0 = Select.kr(osc3FilterEG, [
@@ -108,13 +109,13 @@ SynthDef(\minimoog, { |
 
 	var modSignal = mod * LinSelectX.kr(modMix, [modComponent0, modComponent1]);
 
-	var osc1note = smoothedNote + (12 * (osc1Range - 3)) + (oscModOn * modSignal * 12);
+	var osc1note = smoothedNote + (12 * osc1Range) + (oscModOn * modSignal * 12);
 	var osc1Freq = osc1note.midicps;
 
-	var osc2note = smoothedNote + (12 * (osc2Range - 3)) + osc2NoteOffset + (oscModOn * modSignal * 12);
+	var osc2note = smoothedNote + (12 * osc2Range) + osc2NoteOffset + (oscModOn * modSignal * 12);
 	var osc2Freq = osc2note.midicps;
 
-	var osc3noteAudio = ((smoothedNote * osc3Control) + (oscModOn * modSignal * 12)) + (12 * (osc3Range - 3)) + osc3NoteOffset;
+	var osc3noteAudio = ((smoothedNote * osc3Control) + (oscModOn * modSignal * 12)) + (12 * osc3Range) + osc3NoteOffset;
 	var osc3FreqAudio = osc3noteAudio.midicps;
 
 	var osc1 = Select.ar(osc1Selection, [
@@ -148,6 +149,7 @@ SynthDef(\minimoog, { |
 		osc3Volume * osc3 * osc3On,
 		noiseVolume * audioNoise * noiseOn,
 		1 * extVolume * InFeedback.ar(extBus, 1) * extOn,
+		WhiteNoise.ar(mul:0.01),
 	]);
 
 	var soundEnv = EnvGen.kr(
@@ -160,12 +162,12 @@ SynthDef(\minimoog, { |
 		gate: gate
 	);
 
-	var filterNote = filterCutoff; // + (filterModOn * modSignal * 12) + (filterEnv * filterContour * 12) + (filterKeyboard1 * 1/3 * smoothedNote) + (filterKeyboard2 * 2/3 * smoothedNote);
+	var filterNote = (filterCutoff * 14.4 + 79) + (((filterKeyboard1 * 1/3) + (filterKeyboard2 * 2/3)) * (smoothedNote-12)) + (((filterEnv * 1.6) + 0.1) * filterContour);
 
-	sound = MoogLadder.ar(
+	sound = MoogFF.ar(
 		in: sound,
-		ffreq: filterNote.midicps,
-		res: filterEmphasis,
+		freq: filterNote.midicps,
+		gain: filterEmphasis.linlin(0, 1, 0, 4),
 	);
 
 	sound = sound * soundEnv;
@@ -290,9 +292,6 @@ window.layout = VLayout(
 		EZKnob(window, 160@40, label: "Sustain", controlSpec: ControlSpec(0, 1, units: "%"), action: {
 			| k | minimoogSynth.set(\filterSustain, k.value);
 		}, layout: \line2,).view,
-		EZKnob(window, 160@40, label: "Cutoff", controlSpec: ControlSpec(0, 127, units: "note"), action: {
-			| k | minimoogSynth.set(\filterCutoff, k.value);
-		}, layout: \line2).view,
 	),
 	StaticText(window).string_("Loudness:"),
 	HLayout(
@@ -385,7 +384,7 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 	}
 	{ 83 } {
 		format("Slider 2 = %", value).postln;
-		minimoogSynth.set(\filterCutoff, value.linlin(0, 127, -50, 50));
+		minimoogSynth.set(\filterCutoff, value.linlin(0, 127, -5, 5));
 	}
 	{ 85 } {
 		format("Slider 3 = %", value).postln;
@@ -393,7 +392,7 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 	}
 	{ 17 } {
 		format("Slider 4 = %", value).postln;
-		minimoogSynth.set(\filterContour, value.linlin(0, 127, 0.0, 2));
+		minimoogSynth.set(\filterContour, value.linlin(0, 127, 0, 10));
 	}
 	{ 109 } {
 		format("Pad 1A = %", value).postln;
