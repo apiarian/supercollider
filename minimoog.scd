@@ -78,6 +78,13 @@ var bumpControl = { | control, delta |
 
 var setControl = { | control, value |
 	var ctrl = controls.at(control);
+	var spec = ctrl.controlSpec;
+	ctrl.value = spec.map(value);
+	ctrl.action.value(ctrl);
+};
+
+var setButton = { | control, value |
+	var ctrl = controls.at(control);
 	ctrl.value = value;
 	ctrl.action.value(ctrl);
 };
@@ -86,6 +93,7 @@ var noteOn;
 var noteOff;
 var cc;
 var bend;
+var shift = 0;
 
 var notesOn = SortedList.new;
 
@@ -336,7 +344,6 @@ bend = MIDIFunc.bend({| value, channel, something |
 
 cc = MIDIFunc.cc({| value, control, channel, something |
 	AppClock.sched(0, {
-		var delta = if (value > 64) { -0.01 } { 0.01 };
 
 		var rotaryMappings = (
 			74: ["Rotary 1", \osc1Volume],
@@ -355,110 +362,60 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 			83: ["Slider 2", \filterCutoff],
 			85: ["Slider 3", \filterEmphasis],
 			17: ["slider 4", \filterContour],
+		);
 
-		var done = case
-			{ rotaryMappings[control] != nil } {
-				var name = rotaryMappings[control][0];
-				var target = rotaryMappings[control][1];
-				format("% = %", name, value).postln;
-				bumpControl.value(target, delta);
-			}
-			{ directMappings[control] != nil } {
-				var name = directMappings[control][0];
-				var target = directMappings[control][1];
-				format("% = %", name, value).postln;
-				setControl.value(targets
-			}
-		;
+		var buttonMappings = (
+			109: ["Pad 1A", \osc3Control],
+			111: ["Pad 2A", \osc1On],
+			113: ["Pad 3A", \osc2On],
+			115: ["Pad 4A", \osc3On],
+			117: ["Pad 5A", \noiseOn],
+			119: ["Pad 6A", \extOn],
+			121: ["Pad 7A", \lfoSelection],
+			123: ["Pad 8A", \noiseSelection],
+			110: ["Pad 1B", nil],
+			112: ["Pad 2B", nil],
+			114: ["Pad 3B", nil],
+			116: ["Pad 4B", nil],
+			118: ["Pad 5B", nil],
+			120: ["Pad 6B", nil],
+			122: ["Pad 7B", nil],
+			124: ["Pad 8B", nil],
+		);
 
-		switch(control)
-		{ 1 } {
-			format("Mod = %", value).postln;
-			setControl.value(\mod, value.linlin(0, 127, 0, 1));
+		case
+		{ control == 9 } {
+			format("Shift = %", value).postln;
+			shift = value/127;
 		}
-		{ 82 } {
-			format("Slider 1 = %", value).postln;
-			minimoogSynth.set(\extVolume, value.linlin(0, 127, 0, 1));
+		{ control == 21 } {
+			format("Knob Button = %", value).postln;
 		}
-		{ 83 } {
-			format("Slider 2 = %", value).postln;
-			minimoogSynth.set(\filterCutoff, value.linlin(0, 127, -5, 5));
+		{ control == 20 } {
+			format("Knob = %", value).postln;
 		}
-		{ 85 } {
-			format("Slider 3 = %", value).postln;
-			bumpControl.value(\filterEmphasis, 0.1);
-		}
-		{ 17 } {
-			format("Slider 4 = %", value).postln;
-			minimoogSynth.set(\filterContour, value.linlin(0, 127, 0, 10));
-		}
-		{ 109 } {
-			format("Pad 1A = %", value).postln;
-			minimoogSynth.set(\osc3Control, value.linlin(0, 127, 1, 0));
-		}
-		{ 111 } {
-			format("Pad 2A = %", value).postln;
-			minimoogSynth.set(\osc1On, value/127);
-		}
-		{ 113 } {
-			format("Pad 3A = %", value).postln;
-			minimoogSynth.set(\osc2On, value/127);
-		}
-		{ 115 } {
-			format("Pad 4A = %", value).postln;
-			minimoogSynth.set(\osc3On, value/127);
-		}
-		{ 117 } {
-			format("Pad 5A = %", value).postln;
-			minimoogSynth.set(\noiseOn, value/127);
-		}
-		{ 119 } {
-			format("Pad 6A = %", value).postln;
-			minimoogSynth.set(\extOn, value/127);
-		}
-		{ 121 } {
-			format("Pad 7A = %", value).postln;
-			minimoogSynth.set(\lfoSelection, value / 127);
-		}
-		{ 123 } {
-			format("Pad 8A = %", value).postln;
-			minimoogSynth.set(\noiseSelection, value / 127);
-		}
-		{ 110 } {
-			format("Pad 1B = %", value).postln;
-			// [unmapped]
-		}
-		{ 112 } {
-			format("Pad 2B = %", value).postln;
-			// [unmapped]
-		}
-		{ 114 } {
-			format("Pad 3B = %", value).postln;
-			// [unmapped]
-		}
-		{ 116 } {
-			format("Pad 4B = %", value).postln;
-			// [unmapped]
-		}
-		{ 118 } {
-			format("Pad 5B = %", value).postln;
-			// [unmapped]
-		}
-		{ 120 } {
-			format("Pad 6B = %", value).postln;
-			// [unmapped]
-		}
-		{ 122 } {
-			format("Pad 7B = %", value).postln;
-			// [unmapped]
-		}
-		{ 124 } {
-			format("Pad 8B = %", value).postln;
-			// [unmapped]
-		}
+		{ rotaryMappings[control] != nil } {
+			var name = rotaryMappings[control][0];
+			var target = rotaryMappings[control][1];
 
-		{ format("control % = %", control, value).postln };
+			var delta = if (value > 64) { if (shift == 1) {-0.001} {-0.01} } { if(shift == 1) {0.001} {0.01} };
 
+			format("% = %", name, value).postln;
+			if (target != nil ) { bumpControl.value(target, delta) } { };
+		}
+		{ directMappings[control] != nil } {
+			var name = directMappings[control][0];
+			var target = directMappings[control][1];
+			format("% = %", name, value).postln;
+			setControl.value(target, value.linlin(0, 127, 0, 1));
+		}
+		{ buttonMappings[control] != nil} {
+			var name = buttonMappings[control][0];
+			var target = buttonMappings[control][1];
+			format("% = %", name, value).postln;
+			if (target != nil) { setButton.value(target, value/127) } { };
+		}
+		{ true } { format("control % = %", control, value).postln };
 		nil;
 	});
 });
