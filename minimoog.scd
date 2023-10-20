@@ -7,7 +7,7 @@ s.freqscope;
 )
 
 (
-var window = Window("Minimoog Controls", 600@800);
+var window = Window("Minimoog Controls", 800@900);
 
 var configsFilename = "~/Desktop/minimoog-configs.scd".standardizePath;
 var configs = if(File.exists(configsFilename)) { this.executeFile(configsFilename) } { (
@@ -39,7 +39,7 @@ var makeKnob = { | control, spec |
 		control,
 		EZKnob(
 			window,
-			100@120,
+			80@100,
 			label: control,
 			controlSpec: spec,
 			initVal: configs.at(control),
@@ -61,8 +61,8 @@ var makePopup = { | control, bounds, items |
 	menu.value = configs.at(control);
 	controls.put(control, menu);
 };
-var makeButton = { | control, states |
-	var button = Button(window, 50@30);
+var makeButton = { | control, states, bounds = (50@30) |
+	var button = Button(window, bounds);
 	button.states = states;
 	button.action = { | button | updateConfig.value(control, button.value) };
 	button.value = configs.at(control);
@@ -73,6 +73,12 @@ var bumpControl = { | control, delta |
 	var ctrl = controls.at(control);
 	var spec = ctrl.controlSpec;
 	ctrl.value = spec.map(spec.unmap(ctrl.value) + delta);
+	ctrl.action.value(ctrl);
+};
+
+var setControl = { | control, value |
+	var ctrl = controls.at(control);
+	ctrl.value = value;
 	ctrl.action.value(ctrl);
 };
 
@@ -228,7 +234,23 @@ forkIfNeeded {
 };
 
 window.view.decorator = FlowLayout(window.view.bounds);
-window.view.decorator.gap = 2@2;
+window.view.decorator.gap = 5@2;
+
+makeKnob.value(\lfoRate, ControlSpec(0.05, 200, warp: \exp, units: "Hz"));
+makePopup.value(\lfoSelection, 80@30, ["Triangle", "Square"]);
+makeButton.value(\decayOn, [["Decay Off", "Decay On"]], bounds: 80@30);
+makeButton.value(\glideOn, [["Glide Off", "Glide On"]], bounds: 80@30);
+makeKnob.value(\glideTime, ControlSpec(0.01, 10, warp: \exp, units: "s"));
+
+window.view.decorator.nextLine;
+
+makeKnob.value(\mod, ControlSpec(0, 1, units: "u"));
+makeButton.value(\osc3FilterEG, [["[OSC3] Filter EG"], ["OSC3 [FilterEG]"]], bounds: 120@30);
+makeKnob.value(\modMix, ControlSpec(0, 1, units: "%"));
+makeButton.value(\noiseLFO, [["[Noise] LFO"], ["Noise [LFO]"]], bounds: 120@30);
+makeButton.value(\oscModOn, [["OSC Mod Off"], ["OSC Mod On"]], bounds: 100@30);
+
+window.view.decorator.nextLine;
 
 StaticText(window, 70@30).string_("OSC 1:").align_(\right);
 makePopup.value(\osc1Range, 50@30, ["LO", "32'", "16'", "8'", "4'", "2'"]);
@@ -258,10 +280,24 @@ makeButton.value(\osc3On, [["off"], ["on"]]);
 
 window.view.decorator.nextLine;
 
+StaticText(window, 70@30).string_("Noise:").align_(\right);
+makePopup.value(\noiseSelection, 100@30, ["White", "Pink"]);
+makeKnob.value(\noiseVolume, ControlSpec(0, 1, units: "u"));
+makeButton.value(\noiseOn, [["off"], ["on"]]);
+
+StaticText(window, 70@30).string_("External: ").align_(\right);
+makeKnob.value(\extVolume, ControlSpec(0, 1, units: "u"));
+makeButton.value(\extOn, [["off"], ["on"]]);
+
+window.view.decorator.nextLine;
+
 StaticText(window, 70@30).string_("Filter: ").align_(\right);
 makeButton.value(\filterModOn, [["Mod off"], ["Mod on"]]);
 makeButton.value(\filterKeyboard1, [["Kbd 0"], ["Kbd 1/3"]]);
 makeButton.value(\filterKeyboard2, [["Kbd 0"], ["Kbd 2/3"]]);
+makeKnob.value(\filterCutoff, ControlSpec(-5, 5, units: "u"));
+makeKnob.value(\filterEmphasis, ControlSpec(0, 1, units: "u"));
+makeKnob.value(\filterContour, ControlSpec(0, 10, units: "u"));
 makeKnob.value(\filterAttack, ControlSpec(0.01, 10, \exp, units: "s"));
 makeKnob.value(\filterDecay, ControlSpec(0.04, 35, \exp, units: "s"));
 makeKnob.value(\filterSustain, ControlSpec(0, 1, units: "u"));
@@ -272,6 +308,7 @@ StaticText(window, 70@30).string_("Loudness: ").align_(\right);
 makeKnob.value(\soundAttack, ControlSpec(0.01, 10, \exp, units: "s"));
 makeKnob.value(\soundDecay, ControlSpec(0.04, 35, \exp, units: "s"));
 makeKnob.value(\soundSustain, ControlSpec(0, 1, units: "u"));
+makeKnob.value(\amp, ControlSpec(0, 1.1, units: "u"));
 
 noteOn = MIDIFunc.noteOn({ | velocity, note, channel, something |
 	format("Note % on %", note, velocity).postln;
@@ -297,6 +334,135 @@ bend = MIDIFunc.bend({| value, channel, something |
 	updateConfig.value(\bend, value.linlin(0, 16383, -7, 7));
 });
 
+cc = MIDIFunc.cc({| value, control, channel, something |
+	AppClock.sched(0, {
+		var delta = if (value > 64) { -0.01 } { 0.01 };
+
+		var rotaryMappings = (
+			74: ["Rotary 1", \osc1Volume],
+			71: ["Rotary 2", \osc2Volume],
+			76: ["Rotary 3", \osc3Volume],
+			77: ["Rotary 4", \noiseVolume],
+			93: ["Rotary 5", \lfoRate],
+			18: ["Rotary 6", \osc2NoteOffset],
+			19: ["Rotary 7", \osc3NoteOffset],
+			16: ["Rotary 8", \modMix],
+		);
+
+		var directMappings = (
+			1: ["Mod", \mod],
+			82: ["Slider 1", \extVolume],
+			83: ["Slider 2", \filterCutoff],
+			85: ["Slider 3", \filterEmphasis],
+			17: ["slider 4", \filterContour],
+
+		var done = case
+			{ rotaryMappings[control] != nil } {
+				var name = rotaryMappings[control][0];
+				var target = rotaryMappings[control][1];
+				format("% = %", name, value).postln;
+				bumpControl.value(target, delta);
+			}
+			{ directMappings[control] != nil } {
+				var name = directMappings[control][0];
+				var target = directMappings[control][1];
+				format("% = %", name, value).postln;
+				setControl.value(targets
+			}
+		;
+
+		switch(control)
+		{ 1 } {
+			format("Mod = %", value).postln;
+			setControl.value(\mod, value.linlin(0, 127, 0, 1));
+		}
+		{ 82 } {
+			format("Slider 1 = %", value).postln;
+			minimoogSynth.set(\extVolume, value.linlin(0, 127, 0, 1));
+		}
+		{ 83 } {
+			format("Slider 2 = %", value).postln;
+			minimoogSynth.set(\filterCutoff, value.linlin(0, 127, -5, 5));
+		}
+		{ 85 } {
+			format("Slider 3 = %", value).postln;
+			bumpControl.value(\filterEmphasis, 0.1);
+		}
+		{ 17 } {
+			format("Slider 4 = %", value).postln;
+			minimoogSynth.set(\filterContour, value.linlin(0, 127, 0, 10));
+		}
+		{ 109 } {
+			format("Pad 1A = %", value).postln;
+			minimoogSynth.set(\osc3Control, value.linlin(0, 127, 1, 0));
+		}
+		{ 111 } {
+			format("Pad 2A = %", value).postln;
+			minimoogSynth.set(\osc1On, value/127);
+		}
+		{ 113 } {
+			format("Pad 3A = %", value).postln;
+			minimoogSynth.set(\osc2On, value/127);
+		}
+		{ 115 } {
+			format("Pad 4A = %", value).postln;
+			minimoogSynth.set(\osc3On, value/127);
+		}
+		{ 117 } {
+			format("Pad 5A = %", value).postln;
+			minimoogSynth.set(\noiseOn, value/127);
+		}
+		{ 119 } {
+			format("Pad 6A = %", value).postln;
+			minimoogSynth.set(\extOn, value/127);
+		}
+		{ 121 } {
+			format("Pad 7A = %", value).postln;
+			minimoogSynth.set(\lfoSelection, value / 127);
+		}
+		{ 123 } {
+			format("Pad 8A = %", value).postln;
+			minimoogSynth.set(\noiseSelection, value / 127);
+		}
+		{ 110 } {
+			format("Pad 1B = %", value).postln;
+			// [unmapped]
+		}
+		{ 112 } {
+			format("Pad 2B = %", value).postln;
+			// [unmapped]
+		}
+		{ 114 } {
+			format("Pad 3B = %", value).postln;
+			// [unmapped]
+		}
+		{ 116 } {
+			format("Pad 4B = %", value).postln;
+			// [unmapped]
+		}
+		{ 118 } {
+			format("Pad 5B = %", value).postln;
+			// [unmapped]
+		}
+		{ 120 } {
+			format("Pad 6B = %", value).postln;
+			// [unmapped]
+		}
+		{ 122 } {
+			format("Pad 7B = %", value).postln;
+			// [unmapped]
+		}
+		{ 124 } {
+			format("Pad 8B = %", value).postln;
+			// [unmapped]
+		}
+
+		{ format("control % = %", control, value).postln };
+
+		nil;
+	});
+});
+
 window.onClose_({
 	var configFile = File(configsFilename, "w");
 	configFile.write(configs.asCompileString);
@@ -313,159 +479,3 @@ window.front;
 
 CmdPeriod.doOnce({window.close});
 )
-
-// 	HLayout(
-// 		Button(window).states_([["OSC Mod Off"], ["OSC Mod On"]]).action_({ | button |
-// 			minimoogSynth.set(\oscModOn, button.value)
-// 		}),
-// 		Button(window).states_([["Decay Off"], ["Decay On"]]).action_({ | button |
-// 			minimoogSynth.set(\decayOn, button.value)
-// 		}),
-// 		Button(window).states_([["Glide Off"], ["Glide On"]]).action_({ | button |
-// 			minimoogSynth.set(\glideOn, button.value)
-// 		}),
-// 		EZKnob(window, 160@40, label: "Glide", controlSpec: ControlSpec(0.01, 10, \exp, units: "s"), action: {
-// 			| k | minimoogSynth.set(\glideTime, k.value);
-// 		}, layout: \line2).view,
-// 	),
-// 	HLayout(
-// 		StaticText(window).string_("Mod Selection:"),
-// 		Button(window).states_([["[OSC3] Filter EG"], ["OSC3 [Filter EG]"]]).action_({ | button |
-// 			minimoogSynth.set(\osc3FilterEG, button.value)
-// 		}),
-// 		Button(window).states_([["[Noise] LFO"], ["Noise [LFO]"]]).action_({ | button |
-// 			minimoogSynth.set(\noiseLFO, button.value)
-// 		}),
-// 	),
-// );
-//
-// cc = MIDIFunc.cc({| value, control, channel, something |
-// 	switch(control)
-// 	{ 1 } {
-// 		format("Mod = %", value).postln;
-// 		minimoogSynth.set(\mod, value.linlin(0, 127, 0, 1));
-// 	}
-// 	{ 74 } {
-// 		format("Rotary 1 = %", value).postln;
-// 		setOSC1Volume.value(value.linlin(0, 127, 0, 1));
-// 	}
-// 	{ 71 } {
-// 		format("Rotary 2 = %", value).postln;
-// 		setOSC2Volume.value(value.linlin(0, 127, 0, 1));
-// 	}
-// 	{ 76 } {
-// 		format("Rotary 3 = %", value).postln;
-// 		setOSC3Volume.value(value.linlin(0, 127, 0, 1));
-// 	}
-// 	{ 77 } {
-// 		format("Rotary 4 = %", value).postln;
-// 		minimoogSynth.set(\noiseVolume, value.linlin(0, 127, 0, 1));
-// 	}
-// 	{ 93 } {
-// 		format("Rotary 5 = %", value).postln;
-// 		minimoogSynth.set(\lfoRate, value.linexp(0, 127, 0.05, 200));
-// 	}
-// 	{ 18 } {
-// 		format("Rotary 6 = %", value).postln;
-// 		if (value == 64) {
-// 			minimoogSynth.set(\osc2NoteOffset, 0);
-// 		} {
-// 			minimoogSynth.set(\osc2NoteOffset, value.linlin(0, 127, -8, 8));
-// 		};
-// 	}
-// 	{ 19 } {
-// 		format("Rotary 7 = %", value).postln;
-// 		if (value == 64) {
-// 			minimoogSynth.set(\osc3NoteOffset, 0);
-// 		} {
-// 			minimoogSynth.set(\osc3NoteOffset, value.linlin(0, 127, -8, 8));
-// 		};
-// 	}
-// 	{ 16 } {
-// 		format("Rotary 8 = %", value).postln;
-// 		minimoogSynth.set(\modMix, value.linlin(0, 127, 0, 1));
-// 	}
-// 	{ 82 } {
-// 		format("Slider 1 = %", value).postln;
-// 		minimoogSynth.set(\extVolume, value.linlin(0, 127, 0, 1));
-// 	}
-// 	{ 83 } {
-// 		format("Slider 2 = %", value).postln;
-// 		minimoogSynth.set(\filterCutoff, value.linlin(0, 127, -5, 5));
-// 	}
-// 	{ 85 } {
-// 		format("Slider 3 = %", value).postln;
-// 		setFilterEmphasis.value(value.linlin(0, 127, 0.0, 1.0));
-// 	}
-// 	{ 17 } {
-// 		format("Slider 4 = %", value).postln;
-// 		minimoogSynth.set(\filterContour, value.linlin(0, 127, 0, 10));
-// 	}
-// 	{ 109 } {
-// 		format("Pad 1A = %", value).postln;
-// 		minimoogSynth.set(\osc3Control, value.linlin(0, 127, 1, 0));
-// 	}
-// 	{ 111 } {
-// 		format("Pad 2A = %", value).postln;
-// 		minimoogSynth.set(\osc1On, value/127);
-// 	}
-// 	{ 113 } {
-// 		format("Pad 3A = %", value).postln;
-// 		minimoogSynth.set(\osc2On, value/127);
-// 	}
-// 	{ 115 } {
-// 		format("Pad 4A = %", value).postln;
-// 		minimoogSynth.set(\osc3On, value/127);
-// 	}
-// 	{ 117 } {
-// 		format("Pad 5A = %", value).postln;
-// 		minimoogSynth.set(\noiseOn, value/127);
-// 	}
-// 	{ 119 } {
-// 		format("Pad 6A = %", value).postln;
-// 		minimoogSynth.set(\extOn, value/127);
-// 	}
-// 	{ 121 } {
-// 		format("Pad 7A = %", value).postln;
-// 		minimoogSynth.set(\lfoSelection, value / 127);
-// 	}
-// 	{ 123 } {
-// 		format("Pad 8A = %", value).postln;
-// 		minimoogSynth.set(\noiseSelection, value / 127);
-// 	}
-// 	{ 110 } {
-// 		format("Pad 1B = %", value).postln;
-// 		// [unmapped]
-// 	}
-// 	{ 112 } {
-// 		format("Pad 2B = %", value).postln;
-// 		// [unmapped]
-// 	}
-// 	{ 114 } {
-// 		format("Pad 3B = %", value).postln;
-// 		// [unmapped]
-// 	}
-// 	{ 116 } {
-// 		format("Pad 4B = %", value).postln;
-// 		// [unmapped]
-// 	}
-// 	{ 118 } {
-// 		format("Pad 5B = %", value).postln;
-// 		// [unmapped]
-// 	}
-// 	{ 120 } {
-// 		format("Pad 6B = %", value).postln;
-// 		// [unmapped]
-// 	}
-// 	{ 122 } {
-// 		format("Pad 7B = %", value).postln;
-// 		// [unmapped]
-// 	}
-// 	{ 124 } {
-// 		format("Pad 8B = %", value).postln;
-// 		// [unmapped]
-// 	}
-//
-// 	{ format("control % = %", control, value).postln };
-// });
-
