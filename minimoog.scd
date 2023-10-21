@@ -94,6 +94,7 @@ var noteOff;
 var cc;
 var bend;
 var shift = 0;
+var meta = 0;
 
 var notesOn = SortedList.new;
 
@@ -187,7 +188,7 @@ SynthDef(\minimoog, { |
 	var osc2 = Select.ar(osc2Selection, [
 		LFTri.ar(osc2Freq),
 		(LFTri.ar(osc2Freq) * LFPulse.ar(osc2Freq * 2)) + (LFSaw.ar(osc2Freq, iphase: 1, mul: -1) * LFPulse.ar(osc2Freq * 2, iphase: 0.5)),
-		Saw.ar(osc2Freq),
+		LFSaw.ar(osc2Freq),
 		Pulse.ar(osc2Freq, width: 0.5),
 		Pulse.ar(osc2Freq, width: 0.25),
 		Pulse.ar(osc2Freq, width: 0.05),
@@ -195,16 +196,16 @@ SynthDef(\minimoog, { |
 	var osc3 = Select.ar(osc3Selection, [
 		LFTri.ar(osc3FreqAudio),
 		LFSaw.ar(osc3FreqAudio, mul: -1),
-		Saw.ar(osc3FreqAudio),
+		LFSaw.ar(osc3FreqAudio),
 		Pulse.ar(osc3FreqAudio, width: 0.5),
 		Pulse.ar(osc3FreqAudio, width: 0.25),
 		Pulse.ar(osc3FreqAudio, width: 0.05),
 	]);
 
 	var sound = Mix([
-		osc1Volume * osc1 * osc1On,
-		osc2Volume * osc2 * osc2On,
-		osc3Volume * osc3 * osc3On,
+		osc1Volume * LPF.ar(osc1, 10000) * osc1On,
+		osc2Volume * LPF.ar(osc2, 10000) * osc2On,
+		osc3Volume * LPF.ar(osc3, 10000) * osc3On,
 		noiseVolume * audioNoise * noiseOn,
 		1 * extVolume * InFeedback.ar(extBus, 1) * extOn,
 		WhiteNoise.ar(mul:0.01),
@@ -246,8 +247,8 @@ window.view.decorator.gap = 5@2;
 
 makeKnob.value(\lfoRate, ControlSpec(0.05, 200, warp: \exp, units: "Hz"));
 makePopup.value(\lfoSelection, 80@30, ["Triangle", "Square"]);
-makeButton.value(\decayOn, [["Decay Off", "Decay On"]], bounds: 80@30);
-makeButton.value(\glideOn, [["Glide Off", "Glide On"]], bounds: 80@30);
+makeButton.value(\decayOn, [["Decay Off"], ["Decay On"]], bounds: 80@30);
+makeButton.value(\glideOn, [["Glide Off"], ["Glide On"]], bounds: 80@30);
 makeKnob.value(\glideTime, ControlSpec(0.01, 10, warp: \exp, units: "s"));
 
 window.view.decorator.nextLine;
@@ -346,10 +347,10 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 	AppClock.sched(0, {
 
 		var rotaryMappings = (
-			74: ["Rotary 1", \osc1Volume],
-			71: ["Rotary 2", \osc2Volume],
-			76: ["Rotary 3", \osc3Volume],
-			77: ["Rotary 4", \noiseVolume],
+			74: ["Rotary 1", \filterCutoff],
+			71: ["Rotary 2", \filterEmphasis],
+			76: ["Rotary 3", \filterContour],
+			77: ["Rotary 4", \filterSustain],
 			93: ["Rotary 5", \lfoRate],
 			18: ["Rotary 6", \osc2NoteOffset],
 			19: ["Rotary 7", \osc3NoteOffset],
@@ -358,21 +359,21 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 
 		var directMappings = (
 			1: ["Mod", \mod],
-			82: ["Slider 1", \extVolume],
-			83: ["Slider 2", \filterCutoff],
-			85: ["Slider 3", \filterEmphasis],
-			17: ["slider 4", \filterContour],
+			82: ["Slider 1", \osc1Volume],
+			83: ["Slider 2", \osc2Volume],
+			85: ["Slider 3", \osc3Volume],
+			17: ["slider 4", \noiseVolume],
 		);
 
 		var buttonMappings = (
-			109: ["Pad 1A", \osc3Control],
-			111: ["Pad 2A", \osc1On],
+			109: ["Pad 1A", nil],
+			111: ["Pad 2A", nil],
 			113: ["Pad 3A", \osc2On],
-			115: ["Pad 4A", \osc3On],
-			117: ["Pad 5A", \noiseOn],
-			119: ["Pad 6A", \extOn],
-			121: ["Pad 7A", \lfoSelection],
-			123: ["Pad 8A", \noiseSelection],
+			115: ["Pad 4A", \osc1On],
+			117: ["Pad 5A", \osc2On],
+			119: ["Pad 6A", \osc3On],
+			121: ["Pad 7A", \noiseOn],
+			123: ["Pad 8A", \extOn],
 			110: ["Pad 1B", nil],
 			112: ["Pad 2B", nil],
 			114: ["Pad 3B", nil],
@@ -390,9 +391,14 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 		}
 		{ control == 21 } {
 			format("Knob Button = %", value).postln;
+			meta = value/127;
 		}
 		{ control == 20 } {
+			var target = \soundSustain;
+			var delta = if (value > 64 ) { if (shift == 1) {0.001} {0.01} } { if (shift == 1) {-0.001} {-0.01} };
+
 			format("Knob = %", value).postln;
+			bumpControl.value(target, delta);
 		}
 		{ rotaryMappings[control] != nil } {
 			var name = rotaryMappings[control][0];
