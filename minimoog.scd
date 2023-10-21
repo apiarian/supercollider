@@ -177,38 +177,49 @@ SynthDef(\minimoog, { |
 	var osc3noteAudio = ((smoothedNote * osc3Control) + (oscModOn * modSignal * 12)) + (12 * osc3Range) + osc3NoteOffset;
 	var osc3FreqAudio = osc3noteAudio.midicps;
 
-	var osc1 = Select.ar(osc1Selection, [
-		LFTri.ar(osc1Freq),
-		(LFTri.ar(osc1Freq) * LFPulse.ar(osc1Freq * 2)) + (LFSaw.ar(osc1Freq, iphase: 1, mul: -1) * LFPulse.ar(osc1Freq * 2, iphase: 0.5)),
-		Saw.ar(osc1Freq),
-		Pulse.ar(osc1Freq, width: 0.5),
-		Pulse.ar(osc1Freq, width: 0.25),
-		Pulse.ar(osc1Freq, width: 0.05),
-	]);
-	var osc2 = Select.ar(osc2Selection, [
-		LFTri.ar(osc2Freq),
-		(LFTri.ar(osc2Freq) * LFPulse.ar(osc2Freq * 2)) + (LFSaw.ar(osc2Freq, iphase: 1, mul: -1) * LFPulse.ar(osc2Freq * 2, iphase: 0.5)),
-		LFSaw.ar(osc2Freq),
-		Pulse.ar(osc2Freq, width: 0.5),
-		Pulse.ar(osc2Freq, width: 0.25),
-		Pulse.ar(osc2Freq, width: 0.05),
-	]);
-	var osc3 = Select.ar(osc3Selection, [
-		LFTri.ar(osc3FreqAudio),
-		LFSaw.ar(osc3FreqAudio, mul: -1),
-		LFSaw.ar(osc3FreqAudio),
-		Pulse.ar(osc3FreqAudio, width: 0.5),
-		Pulse.ar(osc3FreqAudio, width: 0.25),
-		Pulse.ar(osc3FreqAudio, width: 0.05),
-	]);
+	var upperCutoff = 2000;
+
+	var osc1 = LPF.ar(LinSelectX.ar(
+		VarLag.kr(osc1Selection),
+		[
+			LFTri.ar(osc1Freq),
+			(LFTri.ar(osc1Freq) * LFPulse.ar(osc1Freq * 2)) + (LFSaw.ar(osc1Freq, iphase: 1, mul: -1) * LFPulse.ar(osc1Freq * 2, iphase: 0.5)),
+			LFSaw.ar(osc1Freq),
+			LFPulse.ar(osc1Freq, width: 0.5, mul: 2, add: -1),
+			LFPulse.ar(osc1Freq, width: 0.25, mul: 2, add: -1),
+			LFPulse.ar(osc1Freq, width: 0.05, mul: 2, add: -1),
+		]
+	), upperCutoff);
+	var osc2 = LPF.ar(LinSelectX.ar(
+		VarLag.kr(osc2Selection),
+		[
+			LFTri.ar(osc2Freq),
+			(LFTri.ar(osc2Freq) * LFPulse.ar(osc2Freq * 2)) + (LFSaw.ar(osc2Freq, iphase: 1, mul: -1) * LFPulse.ar(osc2Freq * 2, iphase: 0.5)),
+			LFSaw.ar(osc2Freq),
+			LFPulse.ar(osc2Freq, width: 0.5, mul: 2, add: -1),
+			LFPulse.ar(osc2Freq, width: 0.25, mul: 2, add: -1),
+			LFPulse.ar(osc2Freq, width: 0.05, mul: 2, add: -1),
+		]
+	), upperCutoff);
+	var osc3 = LPF.ar(LinSelectX.ar(
+		VarLag.kr(osc3Selection),
+		[
+			LFTri.ar(osc3FreqAudio),
+			LFSaw.ar(osc3FreqAudio, mul: -1),
+			LFSaw.ar(osc3FreqAudio),
+			LFPulse.ar(osc3FreqAudio, width: 0.5, mul: 2, add: -1),
+			LFPulse.ar(osc3FreqAudio, width: 0.25, mul: 2, add: -1),
+			LFPulse.ar(osc3FreqAudio, width: 0.05, mul: 2, add: -1),
+		]
+	), upperCutoff);
 
 	var sound = Mix([
-		osc1Volume * LPF.ar(osc1, 10000) * osc1On,
-		osc2Volume * LPF.ar(osc2, 10000) * osc2On,
-		osc3Volume * LPF.ar(osc3, 10000) * osc3On,
+		osc1Volume * osc1 * osc1On,
+		osc2Volume * osc2 * osc2On,
+		osc3Volume * osc3 * osc3On,
 		noiseVolume * audioNoise * noiseOn,
 		1 * extVolume * InFeedback.ar(extBus, 1) * extOn,
-		WhiteNoise.ar(mul:0.01),
+		WhiteNoise.ar(mul:0.001),
 	]);
 
 	var soundEnv = EnvGen.kr(
@@ -223,10 +234,10 @@ SynthDef(\minimoog, { |
 
 	var filterNote = (filterCutoff * 14.4 + 79) + (((filterKeyboard1 * 1/3) + (filterKeyboard2 * 2/3)) * (smoothedNote-12)) + (((filterEnv * 1.6) + 0.1) * filterContour);
 
-	sound = MoogFF.ar(
+	sound = MoogVCF.ar(
 		in: sound,
-		freq: filterNote.midicps,
-		gain: filterEmphasis.linlin(0, 1, 0, 4),
+		fco: filterNote.midicps,
+		res: filterEmphasis,
 	);
 
 	sound = sound * soundEnv;
@@ -282,10 +293,11 @@ window.view.decorator.nextLine;
 
 StaticText(window, 70@30).string_("OSC 3:").align_(\right);
 makePopup.value(\osc3Range, 50@30, ["LO", "32'", "16'", "8'", "4'", "2'"]);
-makePopup.value(\osc32election, 100@30, ["Triangle", "Tri/Saw", "Sawtooth", "Square", "Rect", "Pulse"]);
+makePopup.value(\osc3Selection, 100@30, ["Triangle", "Rev. Saw", "Sawtooth", "Square", "Rect", "Pulse"]);
 makeKnob.value(\osc3NoteOffset, ControlSpec(-8, 8, units: "st"));
 makeKnob.value(\osc3Volume, ControlSpec(0, 1, units: "u"));
 makeButton.value(\osc3On, [["off"], ["on"]]);
+makeButton.value(\osc3Control, [["OSC3 Ctrl Off"], ["OSC3 Ctrl On"]], bounds: 100@30);
 
 window.view.decorator.nextLine;
 
@@ -347,14 +359,14 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 	AppClock.sched(0, {
 
 		var rotaryMappings = (
-			74: ["Rotary 1", \filterCutoff],
-			71: ["Rotary 2", \filterEmphasis],
-			76: ["Rotary 3", \filterContour],
-			77: ["Rotary 4", \filterSustain],
-			93: ["Rotary 5", \lfoRate],
-			18: ["Rotary 6", \osc2NoteOffset],
-			19: ["Rotary 7", \osc3NoteOffset],
-			16: ["Rotary 8", \modMix],
+			74: ["Rotary 1", \filterCutoff, nil],
+			71: ["Rotary 2", \filterEmphasis, \filterAttack],
+			76: ["Rotary 3", \filterContour, \filterDecay],
+			77: ["Rotary 4", \filterSustain, nil],
+			93: ["Rotary 5", \lfoRate, nil],
+			18: ["Rotary 6", \osc2NoteOffset, \soundAttack],
+			19: ["Rotary 7", \osc3NoteOffset, \soundDecay],
+			16: ["Rotary 8", \modMix, \extVolume],
 		);
 
 		var directMappings = (
@@ -402,7 +414,7 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 		}
 		{ rotaryMappings[control] != nil } {
 			var name = rotaryMappings[control][0];
-			var target = rotaryMappings[control][1];
+			var target = rotaryMappings[control][1 + meta];
 
 			var delta = if (value > 64) { if (shift == 1) {-0.001} {-0.01} } { if(shift == 1) {0.001} {0.01} };
 
