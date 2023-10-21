@@ -115,6 +115,9 @@ SynthDef(\minimoog, { |
 	|
 	var extBus = Bus.audio;
 
+	var osc2Phase = LPF.kr(BrownNoise.kr(0.5, 0.5), 2);
+	var osc3Phase = LPF.kr(BrownNoise.kr(0.5, 0.5), 2);
+
 	var smoothedNote = Select.kr(glideOn, [
 		note + bend,
 		VarLag.kr(note + bend, glideTime, warp: \lin),
@@ -177,7 +180,7 @@ SynthDef(\minimoog, { |
 	var osc3noteAudio = ((smoothedNote * osc3Control) + (oscModOn * modSignal * 12)) + (12 * osc3Range) + osc3NoteOffset;
 	var osc3FreqAudio = osc3noteAudio.midicps;
 
-	var upperCutoff = 2000;
+	var upperCutoff = 1000;
 
 	var osc1 = LPF.ar(LinSelectX.ar(
 		VarLag.kr(osc1Selection),
@@ -193,23 +196,27 @@ SynthDef(\minimoog, { |
 	var osc2 = LPF.ar(LinSelectX.ar(
 		VarLag.kr(osc2Selection),
 		[
-			LFTri.ar(osc2Freq),
-			(LFTri.ar(osc2Freq) * LFPulse.ar(osc2Freq * 2)) + (LFSaw.ar(osc2Freq, iphase: 1, mul: -1) * LFPulse.ar(osc2Freq * 2, iphase: 0.5)),
-			LFSaw.ar(osc2Freq),
-			LFPulse.ar(osc2Freq, width: 0.5, mul: 2, add: -1),
-			LFPulse.ar(osc2Freq, width: 0.25, mul: 2, add: -1),
-			LFPulse.ar(osc2Freq, width: 0.05, mul: 2, add: -1),
+			LFTri.ar(osc2Freq, iphase: osc2Phase),
+			(
+				LFTri.ar(osc2Freq, iphase: osc2Phase) * LFPulse.ar(osc2Freq * 2, iphase: osc2Phase / 2)
+			) + (
+				LFSaw.ar(osc2Freq, iphase: 1 + (osc2Phase / 2), mul: -1) * LFPulse.ar(osc2Freq * 2, iphase: 0.5 + (osc2Phase / 2))
+			),
+			LFSaw.ar(osc2Freq, iphase: osc2Phase),
+			LFPulse.ar(osc2Freq, width: 0.5, mul: 2, add: -1, iphase: osc2Phase / 2),
+			LFPulse.ar(osc2Freq, width: 0.25, mul: 2, add: -1, iphase: osc2Phase / 2),
+			LFPulse.ar(osc2Freq, width: 0.05, mul: 2, add: -1, iphase: osc2Phase / 2),
 		]
 	), upperCutoff);
 	var osc3 = LPF.ar(LinSelectX.ar(
 		VarLag.kr(osc3Selection),
 		[
-			LFTri.ar(osc3FreqAudio),
-			LFSaw.ar(osc3FreqAudio, mul: -1),
-			LFSaw.ar(osc3FreqAudio),
-			LFPulse.ar(osc3FreqAudio, width: 0.5, mul: 2, add: -1),
-			LFPulse.ar(osc3FreqAudio, width: 0.25, mul: 2, add: -1),
-			LFPulse.ar(osc3FreqAudio, width: 0.05, mul: 2, add: -1),
+			LFTri.ar(osc3FreqAudio, iphase: osc3Phase),
+			LFSaw.ar(osc3FreqAudio, mul: -1, iphase: osc3Phase),
+			LFSaw.ar(osc3FreqAudio, iphase: osc3Phase),
+			LFPulse.ar(osc3FreqAudio, width: 0.5, mul: 2, add: -1, iphase: osc3Phase/2),
+			LFPulse.ar(osc3FreqAudio, width: 0.25, mul: 2, add: -1, iphase: osc3Phase/2),
+			LFPulse.ar(osc3FreqAudio, width: 0.05, mul: 2, add: -1, iphase: osc3Phase/2),
 		]
 	), upperCutoff);
 
@@ -363,7 +370,7 @@ cc = MIDIFunc.cc({| value, control, channel, something |
 			71: ["Rotary 2", \filterEmphasis, \filterAttack],
 			76: ["Rotary 3", \filterContour, \filterDecay],
 			77: ["Rotary 4", \filterSustain, nil],
-			93: ["Rotary 5", \lfoRate, nil],
+			93: ["Rotary 5", \lfoRate, \amp],
 			18: ["Rotary 6", \osc2NoteOffset, \soundAttack],
 			19: ["Rotary 7", \osc3NoteOffset, \soundDecay],
 			16: ["Rotary 8", \modMix, \extVolume],
