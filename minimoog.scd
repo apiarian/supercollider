@@ -115,9 +115,6 @@ SynthDef(\minimoog, { |
 	|
 	var extBus = Bus.audio;
 
-	var osc2Phase = LPF.kr(BrownNoise.kr(0.5, 0.5), 2);
-	var osc3Phase = LPF.kr(BrownNoise.kr(0.5, 0.5), 2);
-
 	var smoothedNote = Select.kr(glideOn, [
 		note + bend,
 		VarLag.kr(note + bend, glideTime, warp: \lin),
@@ -180,9 +177,10 @@ SynthDef(\minimoog, { |
 	var osc3noteAudio = ((smoothedNote * osc3Control) + (oscModOn * modSignal * 12)) + (12 * osc3Range) + osc3NoteOffset;
 	var osc3FreqAudio = osc3noteAudio.midicps;
 
-	var upperCutoff = 1000;
+	var phaseDriftRate = 0.1;
+	var freqHeadroom = 4;
 
-	var osc1 = LPF.ar(LinSelectX.ar(
+	var osc1 = DelayC.ar(LPF.ar(LinSelectX.ar(
 		VarLag.kr(osc1Selection),
 		[
 			LFTri.ar(osc1Freq),
@@ -192,33 +190,33 @@ SynthDef(\minimoog, { |
 			LFPulse.ar(osc1Freq, width: 0.25, mul: 2, add: -1),
 			LFPulse.ar(osc1Freq, width: 0.05, mul: 2, add: -1),
 		]
-	), upperCutoff);
-	var osc2 = LPF.ar(LinSelectX.ar(
+	), osc1Freq * freqHeadroom), 0.01, LFNoise2.kr(phaseDriftRate).range(0, 0.01));
+	var osc2 = DelayC.ar(LPF.ar(LinSelectX.ar(
 		VarLag.kr(osc2Selection),
 		[
-			LFTri.ar(osc2Freq, iphase: osc2Phase),
+			LFTri.ar(osc2Freq),
 			(
-				LFTri.ar(osc2Freq, iphase: osc2Phase) * LFPulse.ar(osc2Freq * 2, iphase: osc2Phase / 2)
+				LFTri.ar(osc2Freq) * LFPulse.ar(osc2Freq * 2)
 			) + (
-				LFSaw.ar(osc2Freq, iphase: 1 + (osc2Phase / 2), mul: -1) * LFPulse.ar(osc2Freq * 2, iphase: 0.5 + (osc2Phase / 2))
+				LFSaw.ar(osc2Freq, iphase: 1, mul: -1) * LFPulse.ar(osc2Freq * 2, iphase: 0.5)
 			),
-			LFSaw.ar(osc2Freq, iphase: osc2Phase),
-			LFPulse.ar(osc2Freq, width: 0.5, mul: 2, add: -1, iphase: osc2Phase / 2),
-			LFPulse.ar(osc2Freq, width: 0.25, mul: 2, add: -1, iphase: osc2Phase / 2),
-			LFPulse.ar(osc2Freq, width: 0.05, mul: 2, add: -1, iphase: osc2Phase / 2),
+			LFSaw.ar(osc2Freq),
+			LFPulse.ar(osc2Freq, width: 0.5, mul: 2, add: -1),
+			LFPulse.ar(osc2Freq, width: 0.25, mul: 2, add: -1),
+			LFPulse.ar(osc2Freq, width: 0.05, mul: 2, add: -1),
 		]
-	), upperCutoff);
-	var osc3 = LPF.ar(LinSelectX.ar(
+	), osc2Freq * freqHeadroom), 0.01, LFNoise2.kr(phaseDriftRate).range(0, 0.01));
+	var osc3 = DelayC.ar(LPF.ar(LinSelectX.ar(
 		VarLag.kr(osc3Selection),
 		[
-			LFTri.ar(osc3FreqAudio, iphase: osc3Phase),
-			LFSaw.ar(osc3FreqAudio, mul: -1, iphase: osc3Phase),
-			LFSaw.ar(osc3FreqAudio, iphase: osc3Phase),
-			LFPulse.ar(osc3FreqAudio, width: 0.5, mul: 2, add: -1, iphase: osc3Phase/2),
-			LFPulse.ar(osc3FreqAudio, width: 0.25, mul: 2, add: -1, iphase: osc3Phase/2),
-			LFPulse.ar(osc3FreqAudio, width: 0.05, mul: 2, add: -1, iphase: osc3Phase/2),
+			LFTri.ar(osc3FreqAudio),
+			LFSaw.ar(osc3FreqAudio, mul: -1),
+			LFSaw.ar(osc3FreqAudio),
+			LFPulse.ar(osc3FreqAudio, width: 0.5, mul: 2, add: -1),
+			LFPulse.ar(osc3FreqAudio, width: 0.25, mul: 2, add: -1),
+			LFPulse.ar(osc3FreqAudio, width: 0.05, mul: 2, add: -1),
 		]
-	), upperCutoff);
+	), osc3FreqAudio * freqHeadroom), 0.01, LFNoise2.kr(phaseDriftRate).range(0, 0.01));
 
 	var sound = Mix([
 		osc1Volume * osc1 * osc1On,
@@ -226,7 +224,6 @@ SynthDef(\minimoog, { |
 		osc3Volume * osc3 * osc3On,
 		noiseVolume * audioNoise * noiseOn,
 		1 * extVolume * InFeedback.ar(extBus, 1) * extOn,
-		WhiteNoise.ar(mul:0.001),
 	]);
 
 	var soundEnv = EnvGen.kr(
