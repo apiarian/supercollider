@@ -265,6 +265,10 @@ makePopup.value(\lfoSelection, 80@30, ["Triangle", "Square"]);
 makeButton.value(\decayOn, [["Decay Off"], ["Decay On"]], bounds: 80@30);
 makeButton.value(\glideOn, [["Glide Off"], ["Glide On"]], bounds: 80@30);
 makeKnob.value(\glideTime, ControlSpec(0.01, 10, warp: \exp, units: "s"));
+Button(window, 50@30).string_("all off").action_({| button |
+	notesOn = SortedList.new;
+	updateConfig.value(\gate, 0);
+});
 
 window.view.decorator.nextLine;
 
