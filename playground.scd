@@ -1,5 +1,7 @@
 {SinOsc.ar(mul:0.1)!2}.play
 
+Quarks.gui
+
 ProxySpace.push
 
 (
@@ -17,6 +19,8 @@ SynthDef(\kik, {
 	Out.ar(out, audio ! 2);
 }).add;
 )
+
+Bjorklund(5, 16).collect({|x| (0: Rest(), 1: 1)[x]})
 
 (
 // 16th notes, 32 steps
@@ -50,23 +54,44 @@ t.tempo = 120/60;
 t.permanent = true;
 
 (
+~euclidianPseq = { | hits, total, rotation |
+	Pseq(Bjorklund(hits, total).collect({|x| (0: Rest(), 1: 1)[x] }).rotate(rotation), inf)
+}
+)
+
+x = PbindProxy.new;
+x.set(\instrument, \kik);
+x.set(\gate, ~euclidianPseq.value(9, 16, 0));
+x.play;
+x.set(\dur, 1/4);
+
+(
 var dur = 1/4; // 1/16-th notes
 var quant = 8; // 2 4-beat measures
 
-~hat = PbindProxy(
+~hat = PbindProxy.new(
 	\instrument, \hat,
 	\dur, dur,
-	\gate, ~seqfunc.value(\hatseq),
 	\amp, 0.1,
-).play(t, quant: quant);
-
+);
+~hat.set(\gate, Pseq(Bjorklund(5, 16), inf));
+~hat.play(t, quant: quant);
+)
+(
 ~kik = PbindProxy(
 	\instrument, \kik,
 	\dur, dur,
 	\gate, ~seqfunc.value(\kikseq),
 	\amp, 0.1,
-).play(t, quant: quant)
+);
+~kik.play(t, quant: quant)
 )
+
+~hat.free;
+~hat.stop;
+~hat.set(\gate, Pseq(Bjorklund(2, 16), inf));
+~hat.at(\gate)
+~hat.play
 
 ~hat.mute; ~kik.mute;
 ~hat.unmute;
