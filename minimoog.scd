@@ -3,7 +3,6 @@ s.boot;
 (
 MIDIIn.connectAll;
 s.scope;
-s.freqscope;
 )
 
 (
