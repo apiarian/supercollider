@@ -1,5 +1,7 @@
 {SinOsc.ar(mul:0.1)!2}.play
 
+s.boot
+
 Quarks.gui
 
 ProxySpace.push
