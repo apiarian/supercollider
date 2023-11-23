@@ -2,7 +2,8 @@
 
 From the [scsynth.org forum](https://scsynth.org/t/which-ide-do-you-use/687/21). Add the following
 text to the bottom of `scdoc.css`. On OS X this lives in `~/Library/Application
-Support/SuperCollider/Help/scdoc.css`
+Support/SuperCollider/Help/scdoc.css`. On Linux this lives in
+`~/.local/share/SuperCollider/Help/scdoc.css`
 
 ```
 body {
